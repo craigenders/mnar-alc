@@ -1,0 +1,14 @@
+# time-related missingness
+DATA: mnar.csv;
+# VARIABLES: id med month dpdd;
+DROPOUT: dropout = dpdd;
+ORDINAL: med;
+MISSING: NA;
+CLUSTERID: id;
+TIMEID: month;
+MODEL:
+    dropout ~ intercept@-3 (month==1) (month==2) (month==3) (month==4)
+         (month==1)*med (month==2)*med (month==3)*med (month==4)*med | intercept@0;
+SEED: 90291;
+BURN: 20000;
+ITER: 20000;

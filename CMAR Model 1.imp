@@ -1,0 +1,25 @@
+# cmar analysis model 1
+DATA: mnar.csv;
+# VARIABLES: id med month dpdd;
+ORDINAL: med;
+FIXED: month med;
+MISSING: NA;
+CLUSTERID: id;
+LATENT: id = b0i b1i;
+MODEL:
+    # level-2 equations
+    b0i ~ intercept@b0 med@b2;
+    b1i ~ intercept@b1 med@b3;
+    b0i b1i ~~ b0i b1i;
+    # level-1 equation
+    dpdd ~ intercept@b0i month@b1i;
+PARAMETERS:
+    # compute time-specific effect sizes
+    d_month0 = ( (b0+b2) - (b0) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month1 = ( (b0+b2 + 1*(b1+b3)) - (b0 + 1*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month2 = ( (b0+b2 + 2*(b1+b3)) - (b0 + 2*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month3 = ( (b0+b2 + 3*(b1+b3)) - (b0 + 3*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month4 = ( (b0+b2 + 4*(b1+b3)) - (b0 + 4*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+SEED: 90291;
+BURN: 20000;
+ITER: 20000;
