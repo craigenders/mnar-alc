@@ -450,7 +450,7 @@ bivariate_plot(dpdd.predicted ~ month | med,
 #------------------------------------------------------------------------------#
 
 # function to extract key estimates
-extract_growth_params <- function(object, method) {
+extract_params <- function(object, method) {
   
   tab <- object@estimates
   
@@ -506,15 +506,29 @@ extract_growth_params <- function(object, method) {
 
 # main summary table ----
 table_summary <- cbind(
-  extract_growth_params(model1_cmar, "M1"),
-  extract_growth_params(model2_aux, "M2"),
-  extract_growth_params(model3_sharedparam, "M3"),
-  extract_growth_params(model5_sharedparam, "M5"),
-  extract_growth_params(model6_selection, "M6"),
-  extract_growth_params(model7_selection, "M7"),
-  extract_growth_params(model8_selection, "M8")
+  extract_params(model1_cmar, "Mod1"),
+  extract_params(model2_aux, "Mod2"),
+  extract_params(model3_sharedparam, "Mod3"),
+  extract_params(model5_sharedparam, "Mod5"),
+  extract_params(model6_selection, "Mod6"),
+  extract_params(model7_selection, "Mod7"),
+  extract_params(model8_selection, "Mod8")
 )
 table_summary
+
+# changes in SE units ----
+
+est_cmar <- table_summary[, "Est_Mod1"]
+se_cmar  <- table_summary[, "SE_Mod1"]
+
+compare_methods <- c("Mod2", "Mod3", "Mod5", "Mod6", "Mod7", "Mod8")
+
+table_change <- sapply(compare_methods, function(m) {
+  round((table_summary[, paste0("Est_", m)] - est_cmar) / se_cmar, 2)
+})
+table_change <- as.data.frame(table_change)
+rownames(table_change) <- rownames(table_summary)
+table_change
 
 # diagnostics table ----
 

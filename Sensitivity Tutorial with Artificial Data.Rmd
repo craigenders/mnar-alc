@@ -1,0 +1,927 @@
+---
+title: "Missing Data Sensitivity Analysis for Alcohol Research"
+author: "Craig Enders"
+date: "2026-04-26"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+    toc_depth: 3
+    theme: cosmo
+    highlight: haddock
+    code_folding: show
+    df_print: paged
+  pdf_document:
+    toc: true
+    toc_depth: '4'
+editor_options:
+  chunk_output_type: console
+  markdown:
+    wrap: 72
+---
+
+```{css, echo=FALSE}
+body {
+  font-size: 18px;
+}
+pre {
+  font-size: 15.6px;
+  white-space: pre;
+  overflow-x: visible;
+}
+pre code {
+  white-space: pre;
+  word-wrap: normal;
+}
+.main-container {
+  max-width: 1500px !important;
+}
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  comment = "",
+  fig.width = 10,
+  fig.height = 6)
+
+options(scipen = 999)
+```
+
+This supplement presents `rblimp` R code and annotated output for models described in "Missing Data Sensitivity Analyses for Alcohol Research." The OSF repository at [https://osf.io/tp3k6](https://osf.io/tp3k6) includes the paper and supporting documents. The GitHub repository at
+[https://github.com/craigenders/mnar-alc](https://github.com/craigenders/mnar-alc)
+includes executable R and Blimp Studio scripts that apply the models from the paper to an artifical data set with the same features as the original.
+
+The model numbers used throughout this supplement correspond to the models displayed in Tables 1, 3, and 4 in the paper. The seven sensitivity models are:
+
+| Model | Description |
+|:------|:------------|
+| **Model 1** | CMAR |
+| **Model 2** | CMAR With Auxiliary Variable |
+| **Model 3** | Shared Parameter Model With Random Effects Predicting Dropout |
+| **Model 5** | Shared Parameter Model With Random Effects and Their Squares Predicting Dropout |
+| **Model 6** | Selection Model With Outcome Predicting Dropout |
+| **Model 7** | Selection Model With Outcome and its Square Predicting Dropout |
+| **Model 8** | Selection Model With Outcome and its Lag Predicting Dropout |
+
+------------------------------------------------------------------------
+
+## rblimp Arguments
+
+The table below summarizes the major `rblimp` function arguments used
+throughout this supplement. Each argument corresponds to a command in
+the Blimp Studio scripts provided on the project's public GitHub site
+([https://github.com/craigenders/mnar-alc](https://github.com/craigenders/mnar-alc)).
+Readers unfamiliar with `rblimp` may find it helpful to use this table
+as a reference while working through the analysis examples.
+
+| Argument     | Description                                                            |
+|:-------------|:-----------------------------------------------------------------------|
+| `data`       | R data frame containing all variables                                  |
+| `ordinal`    | Declares a variable as ordinal or categorical                          |
+| `clusterid`  | Level-2 identifier variable                                            |
+| `timeid`     | Integer variable indexing repeated measurement occasions               |
+| `dropout`    | Creates the missingness or dropout indicator                           |
+| `latent`     | Defines level-2 latent variables (random intercepts and slopes)        |
+| `fixed`      | Completely observed predictor variables (speeds computation)           |
+| `model`      | Specifies the focal outcome and dropout model regression equations     |
+| `parameters` | Defines custom derived quantities computed from model parameters       |
+| `nimps`      | Number of imputations (required for computing model-predicted probabilities for graphing) |
+| `seed`       | Integer random number seed for reproducibility                         |
+| `chains`     | Number of independent MCMC chains (4 is also the default)             |
+| `burn`       | Number of warm-up iterations per chain (discarded before estimation)   |
+| `iter`       | Number of post-burn-in iterations used to compute parameter summaries  |
+
+------------------------------------------------------------------------
+
+## Reading the Output
+
+The table below describes each section of the `rblimp` output in the
+order it appears. Detailed descriptions of the BURN-IN RHAT and OUTCOME
+MODEL ESTIMATES sections follow the table.
+
+| Output Section                      | Description                                                                                                                    |
+|:------------------------------------|:-------------------------------------------------------------------------------------------------------------------------------|
+| `BURN-IN POTENTIAL SCALE REDUCTION (PSR) OUTPUT`   | Assesses whether the MCMC warm-up period is sufficiently long; see detailed description below                                  |
+| `DATA INFORMATION`                  | Gives information about the sample size and missing data rates                                                                 |
+| `MODEL INFORMATION`                 | Reports the number of parameters and summarizes the fitted regression equations                                                |
+| `MODEL FIT`                         | Reports DIC and WAIC and custom Wald tests, if specified                                                                       |
+| `IMPUTED DATA SUMMARIES`            | Reports summary statistics for every manifest and latent variable in the model                                                 |
+| `CORRELATIONS AMONG RESIDUALS`      | Reports correlations between pairs of residuals for a model's outcome variables                                                |
+| `OUTCOME MODEL ESTIMATES`           | Parameter estimates, standard errors, credible intervals, and diagnostics; see detailed description below                      |
+| `GENERATED PARAMETERS`              | Displays auxiliary parameters that are a function of the estimated parameters (e.g., time-specific standardized mean differences) |
+
+### Potential Scale Reduction Convergence Diagnostic
+
+The potential scale reduction factor (PSRF) or Rhat convergence
+diagnostic appears near the top of the output. The PSRF assesses
+whether the MCMC warm-up period is sufficiently long for the algorithm
+to converge, which occurs when independent chains produce similar
+parameter estimates. Smaller values closer to the theoretical minimum
+of 1 are better, and values below 1.05 (Asparouhov & Muthén, 2010) or
+1.10 (Gelman et al., 2014) are generally considered adequate. The
+"Highest PSR" column displays the highest (worst) value across all
+model parameters. This value should be less than 1.05 (or 1.10) by the
+end of the burn-in period (the final row of the table). If the highest
+PSRF is too large, increase the number of burn-in iterations (specified
+using the `burn` argument).
+
+### Outcome Model Estimates
+
+Each outcome variable has its own summary table containing raw and
+standardized coefficients, variances and standard deviations, and
+variance explained effect sizes. The Estimate column gives the point
+estimates (posterior median), the StdDev column displays "Bayesian
+standard errors" (posterior standard deviations), the 2.5% and 97.5%
+columns display 95% credible intervals. The ChiSq and PValue columns
+are frequentist significance tests (Wald chi-square values).
+
+The tables for b0i (random intercept) and b1i (random slope) summarize
+the focal model's level-2 regression equations and random coefficient
+variation. The table for dpdd displays the level-1 (within-person)
+residual variance.
+
+The table for dropout displays the dropout model parameters. The
+dropout model's pseudo-R2 (the proportion of variance explained on the
+latent response metric) is often the clearest indicator of model
+quality. Values around .70 or higher suggest that the predictors almost
+perfectly classify dropouts from completers, a condition known as
+near-separation. Very large effect sizes almost always signal that a
+model lacks support from the data.
+
+### Effective Sample Size Diagnostic
+
+The rightmost column in the parameter summary tables labeled N_Eff is the effective sample size (ESS)
+diagnostic. The ESS provides a gauge of whether the post-warm-up
+parameter summaries have sufficient precision. Numerically, it reflects
+the effective number of MCMC iterations (the "sample size") that
+contribute to these summaries after accounting for autocorrelation in
+the sampling process. Values above 100 are generally considered
+adequate (Gelman et al., 2014, p. 287). Inadequate PSRF and ESS values
+indicate that more iterations are needed.
+
+------------------------------------------------------------------------
+
+## Setup
+
+### Load Packages
+
+```{r packages}
+library(ggplot2)
+library(patchwork)
+library(rblimp)
+set_blimp('/applications/blimp/blimp-nightly')
+```
+
+### Read Data
+
+```{r load-data}
+filepath <- 'https://raw.githubusercontent.com/craigenders/mnar-alc/main/mnar.csv'
+
+mnar <- read.csv(filepath, stringsAsFactors = T)
+```
+
+### Source Plotting Functions
+
+```{r source-functions}
+source('https://raw.githubusercontent.com/blimp-stats/blimp-book/main/misc/functions.R')
+source('https://raw.githubusercontent.com/craigenders/mnar-mlm/main/mnar-plotting.R')
+```
+
+### Helper Functions
+
+```{r helper-functions}
+# function to extract key parameter estimates
+extract_params <- function(object, method) {
+
+  tab <- object@estimates
+
+  rows <- c(
+    "b0i ~ Intercept",
+    "b1i ~ Intercept",
+    "b0i ~ med",
+    "b1i ~ med",
+    "b0i residual variance",
+    "b1i residual variance",
+    "Cor( b0i, b1i )",
+    "dpdd residual variance",
+    "Parameter: d_month0",
+    "Parameter: d_month1",
+    "Parameter: d_month2",
+    "Parameter: d_month3",
+    "Parameter: d_month4",
+    "dropout R2: Coefficients"
+  )
+
+  res <- do.call(rbind, lapply(rows, function(r) {
+    if (r %in% rownames(tab)) {
+      round(tab[r, c("Estimate", "StdDev"), drop = FALSE], 2)
+    } else {
+      data.frame(Estimate = NA_real_, StdDev = NA_real_, row.names = r)
+    }
+  }))
+
+  rownames(res) <- c(
+    "Icept (M = 0)",
+    "Slope (M = 0)",
+    "Icept Diff.",
+    "Slope Diff.",
+    "Var(Icept)",
+    "Var(Slope)",
+    "Cor(Icept, Slope)",
+    "Var(Residual)",
+    "Std. Diff. T0",
+    "Std. Diff. T1",
+    "Std. Diff. T2",
+    "Std. Diff. T3",
+    "Std. Diff. T4",
+    "Pseudo-Rsq"
+  )
+
+  colnames(res) <- c(
+    paste0("Est_", method),
+    paste0("SE_", method)
+  )
+
+  res
+}
+
+# function to extract convergence diagnostics
+extract_convergence <- function(object, method) {
+
+  neff <- object@estimates[, "N_Eff"]
+  neff <- neff[is.finite(neff)]
+
+  psr_row <- as.numeric(object@psr[20, ])
+  psr_row <- psr_row[is.finite(psr_row)]
+
+  data.frame(
+    Min_Neff = round(min(neff),    3),
+    Max_Neff = round(max(neff),    3),
+    Min_PSR  = round(min(psr_row), 3),
+    Max_PSR  = round(max(psr_row), 3),
+    row.names = method
+  )
+}
+```
+
+------------------------------------------------------------------------
+
+# Model 1: CMAR
+
+Model 1 fits a two-level growth curve for drinks per drinking day
+(dpdd) under the conditionally missing at random (CMAR) assumption.
+This model serves as the baseline against which the MNAR sensitivity
+models are compared.
+
+```{r model1-cmar, cache=TRUE}
+model1_cmar <- rblimp(
+  data = mnar,
+  ordinal = 'med',
+  clusterid = 'id',
+  latent = 'id = b0i b1i',
+  fixed = 'month med',
+  model = '
+    # level-2 equations
+    b0i ~ intercept@b0 med@b2;
+    b1i ~ intercept@b1 med@b3;
+    b0i b1i ~~ b0i b1i;
+    # level-1 equation
+    dpdd ~ intercept@b0i month@b1i;',
+  parameters = '
+    # compute time-specific effect sizes
+    d_month0 = ( (b0+b2) - (b0) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month1 = ( (b0+b2 + 1*(b1+b3)) - (b0 + 1*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month2 = ( (b0+b2 + 2*(b1+b3)) - (b0 + 2*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month3 = ( (b0+b2 + 3*(b1+b3)) - (b0 + 3*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month4 = ( (b0+b2 + 4*(b1+b3)) - (b0 + 4*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);',
+  seed = 90291,
+  chains = 4,
+  burn = 20000,
+  iter = 20000)
+
+output(model1_cmar)
+
+```
+
+------------------------------------------------------------------------
+
+# Model 2: Auxiliary
+
+Model 2 extends the CMAR model by incorporating an auxiliary variable
+equation that regresses a baseline covariate (ftnd) on the random
+intercept and slope. Including auxiliary variables that are correlated
+with the outcome can recover missing information and improve the
+plausibility of the MAR assumption.
+
+*Important features of the auxiliary variable model:*
+
+- The auxiliary variable equation regresses ftnd on the random effects
+  b0i and b1i, leveraging the correlation between ftnd and the
+  trajectory to recover missing information.
+
+```{r model2-aux, cache=TRUE}
+model2_aux <- rblimp(
+  data = mnar,
+  ordinal = 'med',
+  clusterid = 'id',
+  latent = 'id = b0i b1i',
+  fixed = 'month med',
+  model = '
+    # level-2 equations
+    b0i ~ intercept@b0 med@b2;
+    b1i ~ intercept@b1 med@b3;
+    b0i b1i ~~ b0i b1i;
+    # level-1 equation
+    dpdd ~ intercept@b0i month@b1i;
+    # auxiliary variable equation
+    ftnd ~ b0i b1i;',
+  parameters = '
+    # compute time-specific effect sizes
+    d_month0 = ( (b0+b2) - (b0) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month1 = ( (b0+b2 + 1*(b1+b3)) - (b0 + 1*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month2 = ( (b0+b2 + 2*(b1+b3)) - (b0 + 2*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month3 = ( (b0+b2 + 3*(b1+b3)) - (b0 + 3*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month4 = ( (b0+b2 + 4*(b1+b3)) - (b0 + 4*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);',
+  seed = 90291,
+  chains = 4,
+  burn = 20000,
+  iter = 20000)
+
+output(model2_aux)
+
+```
+
+------------------------------------------------------------------------
+
+# Dropout Probabilities
+
+## Linear
+
+The model in this section regresses the dropout indicator on month,
+treatment (med), and their interaction to assess whether dropout rates
+change linearly across occasions and whether that trend differs by
+treatment group.
+
+*Important features of the dropout model:*
+
+- The `@` symbol fixes parameters at specific numeric values (e.g., -3
+  for the fixed intercept and 0 for the random intercept variance after
+  the vertical pipe).
+
+```{r time-linear, cache=TRUE}
+time_linear <- rblimp(
+  data = mnar,
+  ordinal = 'med',
+  clusterid = 'id',
+  timeid = 'month',
+  dropout = 'dropout = dpdd (monotone)',
+  model = 'dropout ~ intercept@-3 month month*med | intercept@0',
+  seed = 90291,
+  chains = 4,
+  burn = 20000,
+  iter = 20000,
+  nimps = 20)
+
+output(time_linear)
+```
+
+## Quadratic
+
+The model in this section extends the linear trend by adding a
+quadratic month term, allowing dropout rates to accelerate or decelerate
+across occasions.
+
+*Important features of the dropout model:*
+
+- The `@` symbol fixes parameters at specific numeric values (e.g., -3
+  for the fixed intercept and 0 for the random intercept variance after
+  the vertical pipe).
+- Squared terms are specified using `^2`.
+
+```{r time-quadratic, cache=TRUE}
+time_quadratic <- rblimp(
+  data = mnar,
+  ordinal = 'med',
+  clusterid = 'id',
+  timeid = 'month',
+  dropout = 'dropout = dpdd (monotone)',
+  model = 'dropout ~ intercept@-3 month month^2 month*med month^2*med | intercept@0',
+  seed = 90291,
+  chains = 4,
+  burn = 20000,
+  iter = 20000,
+  nimps = 20)
+
+output(time_quadratic)
+```
+
+## Dummy-Coded
+
+The model in this section uses dummy codes for each time point to
+estimate occasion-specific dropout probabilities freely, without
+imposing a functional form on how rates change over time.
+
+*Important features of the dropout model:*
+
+- The `@` symbol fixes parameters at specific numeric values (e.g., -3
+  for the fixed intercept and 0 for the random intercept variance after
+  the vertical pipe).
+- Boolean expressions create dummy codes for each time point, returning
+  1 if MONTH = `t` and 0 otherwise.
+
+```{r time-dummy, cache=TRUE}
+time_dummy <- rblimp(
+  data = mnar,
+  ordinal = 'med',
+  clusterid = 'id',
+  timeid = 'month',
+  dropout = 'dropout = dpdd (monotone)',
+  model = 'dropout ~ intercept@-3 (month==1) (month==2) (month==3) (month==4)
+      (month==1)*med (month==2)*med (month==3)*med (month==4)*med | intercept@0',
+  seed = 90291,
+  chains = 4,
+  burn = 20000,
+  iter = 20000,
+  nimps = 20)
+
+output(time_dummy)
+```
+
+## Dropout Probability Plots
+
+```{r dropout-plots}
+ymin <- 0
+ymax <- .5
+
+plot_pmiss_obs <- plot_means(dropout ~ month | med,
+    model = time_dummy,
+    ylab = "Probability",
+    title = "Observed Probabilities",
+    group_labels = c("0" = "0", "1" = "1")) + ylim(ymin, ymax) +
+    theme(legend.position = "top", legend.justification = "center") +
+    scale_linetype_manual(values = c("dashed", "solid")) +
+    geom_line(linewidth = .25)
+
+plot_pmiss_linear <- plot_means(dropout.1.probability ~ month | med,
+    model = time_linear,
+    ylab = "Probability",
+    title = "Linear Time",
+    group_labels = c("0" = "0", "1" = "1")) + ylim(ymin, ymax) +
+    theme(legend.position = "top", legend.justification = "center") +
+    scale_linetype_manual(values = c("dashed", "solid")) +
+    geom_line(linewidth = .25)
+
+plot_pmiss_quadratic <- plot_means(dropout.1.probability ~ month | med,
+    model = time_quadratic,
+    ylab = "Probability",
+    title = "Quadratic Time",
+    group_labels = c("0" = "0", "1" = "1")) + ylim(ymin, ymax) +
+    theme(legend.position = "top", legend.justification = "center") +
+    scale_linetype_manual(values = c("dashed", "solid")) +
+    geom_line(linewidth = .25)
+
+plot_pmiss_dummy <- plot_means(dropout.1.probability ~ month | med,
+    model = time_dummy,
+    ylab = "Probability",
+    title = "Dummy-Coded Time",
+    group_labels = c("0" = "0", "1" = "1")) + ylim(ymin, ymax) +
+    theme(legend.position = "top", legend.justification = "center") +
+    scale_linetype_manual(values = c("dashed", "solid")) +
+    geom_line(linewidth = .25)
+
+plot_pmiss <- (plot_pmiss_obs | plot_pmiss_linear) / (plot_pmiss_quadratic | plot_pmiss_dummy)
+plot_pmiss
+```
+
+## Obs. vs. Predicted
+
+```{r dropout-fit}
+pmiss_obs       <- aggregate(dropout ~ month + med,                        data = time_dummy@average_imp,     mean)
+pmiss_linear    <- aggregate(dropout.1.probability ~ month + med,          data = time_linear@average_imp,    mean)
+pmiss_quadratic <- aggregate(dropout.1.probability ~ month + med,          data = time_quadratic@average_imp, mean)
+pmiss_dummy     <- aggregate(dropout.1.probability ~ month + med,          data = time_dummy@average_imp,     mean)
+
+rmse_pmiss_linear    <- sqrt(mean((pmiss_linear$dropout.1.probability    - pmiss_obs$dropout)^2))
+rmse_pmiss_quadratic <- sqrt(mean((pmiss_quadratic$dropout.1.probability - pmiss_obs$dropout)^2))
+rmse_pmiss_dummy     <- sqrt(mean((pmiss_dummy$dropout.1.probability     - pmiss_obs$dropout)^2))
+
+miss_fit <- data.frame(
+  RMSE   = round(c(rmse_pmiss_linear, rmse_pmiss_quadratic, rmse_pmiss_dummy), 3),
+  Min    = round(c(
+    min(pmiss_linear$dropout.1.probability    - pmiss_obs$dropout),
+    min(pmiss_quadratic$dropout.1.probability - pmiss_obs$dropout),
+    min(pmiss_dummy$dropout.1.probability     - pmiss_obs$dropout)), 3),
+  Median = round(c(
+    median(pmiss_linear$dropout.1.probability    - pmiss_obs$dropout),
+    median(pmiss_quadratic$dropout.1.probability - pmiss_obs$dropout),
+    median(pmiss_dummy$dropout.1.probability     - pmiss_obs$dropout)), 3),
+  Mean   = round(c(
+    mean(pmiss_linear$dropout.1.probability    - pmiss_obs$dropout),
+    mean(pmiss_quadratic$dropout.1.probability - pmiss_obs$dropout),
+    mean(pmiss_dummy$dropout.1.probability     - pmiss_obs$dropout)), 3),
+  Max    = round(c(
+    max(pmiss_linear$dropout.1.probability    - pmiss_obs$dropout),
+    max(pmiss_quadratic$dropout.1.probability - pmiss_obs$dropout),
+    max(pmiss_dummy$dropout.1.probability     - pmiss_obs$dropout)), 3),
+  row.names = c("Linear", "Quadratic", "Dummy")
+)
+```
+
+```{r dropout-fit-display, echo=FALSE}
+knitr::kable(miss_fit, caption = "Dropout Model Fit")
+```
+
+------------------------------------------------------------------------
+
+# Model 3: Shared Parameter
+
+Model 3 is a shared parameter model that links the probability of
+dropout to each person's random intercept (b0i) and slope (b1i), so
+that individuals with higher or lower trajectories have systematically
+different dropout rates. Because scores are complete at baseline, the
+dropout model uses a definition variable to activate these effects at
+post-baseline occasions.
+
+*Important features of the dropout model:*
+
+- A definition variable (`preknot`) creates a time-varying dummy code
+  that is 0 at baseline and 1 thereafter, activating dropout predictors
+  at post-baseline occasions.
+- The `@` symbol fixes parameters at specific numeric values (e.g., -3
+  for the fixed intercept and 0 for the random intercept variance after
+  the vertical pipe).
+- Boolean expressions create dummy codes for each time point, returning
+  1 if MONTH = `t` and 0 otherwise.
+
+```{r model3-sharedparam, cache=TRUE}
+model3_sharedparam <- rblimp(
+  data = mnar,
+  ordinal = 'med',
+  clusterid = 'id',
+  timeid = 'month',
+  dropout = 'dropout = dpdd (monotone)',
+  latent = 'id = b0i b1i',
+  fixed = 'month med',
+  model = '
+    # level-2 equations
+    b0i ~ intercept@b0 med@b2;
+    b1i ~ intercept@b1 med@b3;
+    b0i b1i ~~ b0i b1i;
+    # level-1 equation
+    dpdd ~ intercept@b0i month@b1i;
+    # dropout model
+    preknot = ifelse(month == 0, 0, 1);
+    dropout ~ intercept@-3 (month==1) (month==2) (month==3) (month==4)
+      (month==1)*med (month==2)*med (month==3)*med (month==4)*med
+      b0i*preknot b1i*preknot | intercept@0;',
+  parameters = '
+    # compute time-specific effect sizes
+    d_month0 = ( (b0+b2) - (b0) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month1 = ( (b0+b2 + 1*(b1+b3)) - (b0 + 1*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month2 = ( (b0+b2 + 2*(b1+b3)) - (b0 + 2*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month3 = ( (b0+b2 + 3*(b1+b3)) - (b0 + 3*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month4 = ( (b0+b2 + 4*(b1+b3)) - (b0 + 4*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);',
+  seed = 90291,
+  chains = 4,
+  burn = 20000,
+  iter = 20000,
+  nimps = 20)
+
+output(model3_sharedparam)
+
+```
+
+------------------------------------------------------------------------
+
+# Model 5: Shared Parameter
+
+Model 5 extends the shared parameter model by adding quadratic terms
+for the random intercept and slope in the dropout equation, allowing
+for nonlinear dependence of dropout on trajectory characteristics.
+Because scores are complete at baseline, the dropout model uses a
+definition variable to activate these effects at post-baseline
+occasions. This model uses `burn = 60000` and `iter = 60000` to achieve
+adequate convergence.
+
+*Important features of the dropout model:*
+
+- A definition variable (`preknot`) creates a time-varying dummy code
+  that is 0 at baseline and 1 thereafter, activating dropout predictors
+  at post-baseline occasions.
+- The `@` symbol fixes parameters at specific numeric values (e.g., -3
+  for the fixed intercept and 0 for the random intercept variance after
+  the vertical pipe).
+- Boolean expressions create dummy codes for each time point, returning
+  1 if MONTH = `t` and 0 otherwise.
+- Squared terms are specified using `^2`.
+
+```{r model5-sharedparam, cache=TRUE}
+model5_sharedparam <- rblimp(
+  data = mnar,
+  ordinal = 'med',
+  clusterid = 'id',
+  timeid = 'month',
+  dropout = 'dropout = dpdd (monotone)',
+  latent = 'id = b0i b1i',
+  fixed = 'month med',
+  model = '
+    # level-2 equations
+    b0i ~ intercept@b0 med@b2;
+    b1i ~ intercept@b1 med@b3;
+    b0i b1i ~~ b0i b1i;
+    # level-1 equation
+    dpdd ~ intercept@b0i month@b1i;
+    # dropout model
+    preknot = ifelse(month == 0, 0, 1);
+    dropout ~ intercept@-3 (month==1) (month==2) (month==3) (month==4)
+      (month==1)*med (month==2)*med (month==3)*med (month==4)*med
+      b0i*preknot b1i*preknot (b0i^2)*preknot (b1i^2)*preknot | intercept@0;',
+  parameters = '
+    # compute time-specific effect sizes
+    d_month0 = ( (b0+b2) - (b0) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month1 = ( (b0+b2 + 1*(b1+b3)) - (b0 + 1*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month2 = ( (b0+b2 + 2*(b1+b3)) - (b0 + 2*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month3 = ( (b0+b2 + 3*(b1+b3)) - (b0 + 3*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month4 = ( (b0+b2 + 4*(b1+b3)) - (b0 + 4*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);',
+  seed = 90291,
+  chains = 4,
+  burn = 60000,
+  iter = 60000,
+  nimps = 20)
+
+output(model5_sharedparam)
+
+```
+
+------------------------------------------------------------------------
+
+# Model 6: Selection Model
+
+Model 6 is a Diggle-Kenward selection model that conditions the
+probability of dropout on the current outcome value (dpdd). Because
+scores are complete at baseline, the dropout model uses a definition
+variable to activate this effect at post-baseline occasions.
+
+*Important features of the dropout model:*
+
+- A definition variable (`preknot`) creates a time-varying dummy code
+  that is 0 at baseline and 1 thereafter, activating dropout predictors
+  at post-baseline occasions.
+- The `@` symbol fixes parameters at specific numeric values (e.g., -3
+  for the fixed intercept and 0 for the random intercept variance after
+  the vertical pipe).
+- Boolean expressions create dummy codes for each time point, returning
+  1 if MONTH = `t` and 0 otherwise.
+
+```{r model6-selection, cache=TRUE}
+model6_selection <- rblimp(
+  data = mnar,
+  ordinal = 'med',
+  clusterid = 'id',
+  timeid = 'month',
+  dropout = 'dropout = dpdd (monotone)',
+  latent = 'id = b0i b1i',
+  fixed = 'month med',
+  model = '
+    # level-2 equations
+    b0i ~ intercept@b0 med@b2;
+    b1i ~ intercept@b1 med@b3;
+    b0i b1i ~~ b0i b1i;
+    # level-1 equation
+    dpdd ~ intercept@b0i month@b1i;
+    # dropout model
+    preknot = ifelse(month == 0, 0, 1);
+    dropout ~ intercept@-3 (month==1) (month==2) (month==3) (month==4)
+      (month==1)*med (month==2)*med (month==3)*med (month==4)*med
+      dpdd*preknot | intercept@0;',
+  parameters = '
+    # compute time-specific effect sizes
+    d_month0 = ( (b0+b2) - (b0) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month1 = ( (b0+b2 + 1*(b1+b3)) - (b0 + 1*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month2 = ( (b0+b2 + 2*(b1+b3)) - (b0 + 2*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month3 = ( (b0+b2 + 3*(b1+b3)) - (b0 + 3*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month4 = ( (b0+b2 + 4*(b1+b3)) - (b0 + 4*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);',
+  seed = 90291,
+  chains = 4,
+  burn = 20000,
+  iter = 20000,
+  nimps = 20)
+
+output(model6_selection)
+
+```
+
+------------------------------------------------------------------------
+
+# Model 7: Selection Model
+
+Model 7 extends the Diggle-Kenward model by adding a quadratic term for
+the current outcome, allowing for nonlinear dependence of dropout on
+outcome values. Because scores are complete at baseline, the dropout
+model uses a definition variable to activate these effects at
+post-baseline occasions.
+
+*Important features of the dropout model:*
+
+- A definition variable (`preknot`) creates a time-varying dummy code
+  that is 0 at baseline and 1 thereafter, activating dropout predictors
+  at post-baseline occasions.
+- The `@` symbol fixes parameters at specific numeric values (e.g., -3
+  for the fixed intercept and 0 for the random intercept variance after
+  the vertical pipe).
+- Boolean expressions create dummy codes for each time point, returning
+  1 if MONTH = `t` and 0 otherwise.
+- Squared terms are specified using `^2`.
+
+```{r model7-selection, cache=TRUE}
+model7_selection <- rblimp(
+  data = mnar,
+  ordinal = 'med',
+  clusterid = 'id',
+  timeid = 'month',
+  dropout = 'dropout = dpdd (monotone)',
+  latent = 'id = b0i b1i',
+  fixed = 'month med',
+  model = '
+    # level-2 equations
+    b0i ~ intercept@b0 med@b2;
+    b1i ~ intercept@b1 med@b3;
+    b0i b1i ~~ b0i b1i;
+    # level-1 equation
+    dpdd ~ intercept@b0i month@b1i;
+    # dropout model
+    preknot = ifelse(month == 0, 0, 1);
+    dropout ~ intercept@-3 (month==1) (month==2) (month==3) (month==4)
+      (month==1)*med (month==2)*med (month==3)*med (month==4)*med
+      dpdd*preknot (dpdd^2)*preknot | intercept@0;',
+  parameters = '
+    # compute time-specific effect sizes
+    d_month0 = ( (b0+b2) - (b0) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month1 = ( (b0+b2 + 1*(b1+b3)) - (b0 + 1*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month2 = ( (b0+b2 + 2*(b1+b3)) - (b0 + 2*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month3 = ( (b0+b2 + 3*(b1+b3)) - (b0 + 3*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month4 = ( (b0+b2 + 4*(b1+b3)) - (b0 + 4*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);',
+  seed = 90291,
+  chains = 4,
+  burn = 20000,
+  iter = 20000,
+  nimps = 20)
+
+output(model7_selection)
+
+```
+
+------------------------------------------------------------------------
+
+# Model 8: Selection Model
+
+Model 8 extends the Diggle-Kenward model by adding the lagged outcome
+value, conditioning dropout on both the current and prior occasion's
+dpdd. Because scores are complete at baseline, the dropout model uses a
+definition variable to activate these effects at post-baseline
+occasions.
+
+*Important features of the dropout model:*
+
+- A definition variable (`preknot`) creates a time-varying dummy code
+  that is 0 at baseline and 1 thereafter, activating dropout predictors
+  at post-baseline occasions.
+- The `@` symbol fixes parameters at specific numeric values (e.g., -3
+  for the fixed intercept and 0 for the random intercept variance after
+  the vertical pipe).
+- Boolean expressions create dummy codes for each time point, returning
+  1 if MONTH = `t` and 0 otherwise.
+- Appending `.lag` to a variable's name introduces its lagged value
+  into the model.
+
+```{r model8-selection, cache=TRUE}
+model8_selection <- rblimp(
+  data = mnar,
+  ordinal = 'med',
+  clusterid = 'id',
+  timeid = 'month',
+  dropout = 'dropout = dpdd (monotone)',
+  latent = 'id = b0i b1i',
+  fixed = 'month med',
+  model = '
+    # level-2 equations
+    b0i ~ intercept@b0 med@b2;
+    b1i ~ intercept@b1 med@b3;
+    b0i b1i ~~ b0i b1i;
+    # level-1 equation
+    dpdd ~ intercept@b0i month@b1i;
+    # dropout model
+    preknot = ifelse(month == 0, 0, 1);
+    dropout ~ intercept@-3 (month==1) (month==2) (month==3) (month==4)
+      (month==1)*med (month==2)*med (month==3)*med (month==4)*med
+      dpdd*preknot dpdd.lag*preknot | intercept@0;',
+  parameters = '
+    # compute time-specific effect sizes
+    d_month0 = ( (b0+b2) - (b0) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month1 = ( (b0+b2 + 1*(b1+b3)) - (b0 + 1*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month2 = ( (b0+b2 + 2*(b1+b3)) - (b0 + 2*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month3 = ( (b0+b2 + 3*(b1+b3)) - (b0 + 3*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month4 = ( (b0+b2 + 4*(b1+b3)) - (b0 + 4*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);',
+  seed = 90291,
+  chains = 4,
+  burn = 20000,
+  iter = 20000,
+  nimps = 20)
+
+output(model8_selection)
+
+```
+
+------------------------------------------------------------------------
+
+# Summary Tables
+
+## Model Key
+
+Model numbers correspond to Tables 1, 3, and 4 in the paper. Models 2 and 4 from those tables are omitted here because they are intermediate specifications not highlighted in the paper's primary comparisons.
+
+| Model | Description |
+|:------|:------------|
+| **Model 1** | CMAR |
+| **Model 2** | CMAR With Auxiliary Variable |
+| **Model 3** | Shared Parameter Model With Random Effects Predicting Dropout |
+| **Model 5** | Shared Parameter Model With Random Effects and Their Squares Predicting Dropout |
+| **Model 6** | Selection Model With Outcome Predicting Dropout |
+| **Model 7** | Selection Model With Outcome and its Square Predicting Dropout |
+| **Model 8** | Selection Model With Outcome and its Lag Predicting Dropout |
+
+## Parameter Estimates
+
+The table displays the estimate (posterior median) and Bayesian standard error (posterior standard deviation) for each model. Column headers beginning with `Est` contain the point estimates (posterior medians) and those beginning with `SE` contain the Bayesian standard errors (posterior standard deviations).
+
+```{r extract-params, cache=TRUE, dependson=c("helper-functions","model1-cmar","model2-aux","model3-sharedparam","model5-sharedparam","model6-selection","model7-selection","model8-selection")}
+table_summary <- cbind(
+  extract_params(model1_cmar,        "Mod1"),
+  extract_params(model2_aux,         "Mod2"),
+  extract_params(model3_sharedparam, "Mod3"),
+  extract_params(model5_sharedparam, "Mod5"),
+  extract_params(model6_selection,   "Mod6"),
+  extract_params(model7_selection,   "Mod7"),
+  extract_params(model8_selection,   "Mod8")
+)
+```
+
+```{r table-summary-display, echo=FALSE, dependson="extract-params"}
+knitr::kable(table_summary, caption = "Parameter Estimates")
+```
+
+## Changes in Standard Error Units
+
+Each cell reports the difference between Model $k$ and the CMAR baseline (Model 1), scaled by Model 1's Bayesian standard error. Values near zero indicate that the MNAR assumption has little practical impact on that parameter relative to sampling variability.
+
+```{r table-change, cache=TRUE, dependson="extract-params"}
+est_cmar <- table_summary[, "Est_Mod1"]
+se_cmar  <- table_summary[, "SE_Mod1"]
+
+compare_methods <- c("Mod2", "Mod3", "Mod5", "Mod6", "Mod7", "Mod8")
+
+table_change <- sapply(compare_methods, function(m) {
+  round((table_summary[, paste0("Est_", m)] - est_cmar) / se_cmar, 2)
+})
+table_change <- as.data.frame(table_change)
+rownames(table_change) <- rownames(table_summary)
+```
+
+```{r table-change-display, echo=FALSE, dependson="table-change"}
+knitr::kable(table_change, caption = "Changes vs. CMAR in Standard Error Units")
+```
+
+## Convergence Diagnostics
+
+```{r extract-conv, cache=TRUE, dependson=c("model1-cmar","model2-aux","model3-sharedparam","model5-sharedparam","model6-selection","model7-selection","model8-selection")}
+table_diag <- rbind(
+  extract_convergence(model1_cmar,        "Model 1"),
+  extract_convergence(model2_aux,         "Model 2"),
+  extract_convergence(model3_sharedparam, "Model 3"),
+  extract_convergence(model5_sharedparam, "Model 5"),
+  extract_convergence(model6_selection,   "Model 6"),
+  extract_convergence(model7_selection,   "Model 7"),
+  extract_convergence(model8_selection,   "Model 8")
+)
+
+table_diag$Iterations <- c(
+  nrow(model1_cmar@iterations),
+  nrow(model2_aux@iterations),
+  nrow(model3_sharedparam@iterations),
+  nrow(model5_sharedparam@iterations),
+  nrow(model6_selection@iterations),
+  nrow(model7_selection@iterations),
+  nrow(model8_selection@iterations)
+)
+```
+
+```{r table-diag-display, echo=FALSE, dependson="extract-conv"}
+knitr::kable(table_diag, caption = "Convergence Diagnostics")
+```
+
+------------------------------------------------------------------------

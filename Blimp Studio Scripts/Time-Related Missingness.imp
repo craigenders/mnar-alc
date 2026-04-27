@@ -1,7 +1,7 @@
 # time-related missingness
 DATA: mnar.csv;
-# VARIABLES: id med month dpdd;
-DROPOUT: dropout = dpdd;
+# VARIABLES: id med month dpdd ftnd;
+DROPOUT: dropout = dpdd (monotone);
 ORDINAL: med;
 MISSING: NA;
 CLUSTERID: id;
