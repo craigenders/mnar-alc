@@ -52,6 +52,8 @@ knitr::opts_chunk$set(
 options(scipen = 999)
 ```
 
+# Overview
+
 This supplement presents `rblimp` R code and annotated output for models described in "Missing Data Sensitivity Analyses for Alcohol Research." The OSF repository at [https://osf.io/tp3k6](https://osf.io/tp3k6) includes the paper and supporting documents. The GitHub repository at
 [https://github.com/craigenders/mnar-alc](https://github.com/craigenders/mnar-alc)
 includes executable R and Blimp Studio scripts that apply the models from the paper to an artifical data set with the same features as the original.
@@ -70,7 +72,7 @@ The model numbers used throughout this supplement correspond to the models displ
 
 ------------------------------------------------------------------------
 
-## rblimp Arguments
+# rblimp Arguments
 
 The table below summarizes the major `rblimp` function arguments used
 throughout this supplement. Each argument corresponds to a command in
@@ -98,11 +100,12 @@ as a reference while working through the analysis examples.
 
 ------------------------------------------------------------------------
 
-## Reading the Output
+# Reading the Output
 
 The table below describes each section of the `rblimp` output in the
-order it appears. Detailed descriptions of the BURN-IN RHAT and OUTCOME
-MODEL ESTIMATES sections follow the table.
+order it appears. Detailed descriptions of the potential scale reduction
+(PSR) convergence diagnostic, the model summary tables, and the
+effective sample size autocorrelation diagnostic follow the table.
 
 | Output Section                      | Description                                                                                                                    |
 |:------------------------------------|:-------------------------------------------------------------------------------------------------------------------------------|
@@ -115,7 +118,7 @@ MODEL ESTIMATES sections follow the table.
 | `OUTCOME MODEL ESTIMATES`           | Parameter estimates, standard errors, credible intervals, and diagnostics; see detailed description below                      |
 | `GENERATED PARAMETERS`              | Displays auxiliary parameters that are a function of the estimated parameters (e.g., time-specific standardized mean differences) |
 
-### Potential Scale Reduction Convergence Diagnostic
+## PSR Convergence Diagnostic
 
 The potential scale reduction factor (PSRF) or Rhat convergence
 diagnostic appears near the top of the output. The PSRF assesses
@@ -130,7 +133,37 @@ end of the burn-in period (the final row of the table). If the highest
 PSRF is too large, increase the number of burn-in iterations (specified
 using the `burn` argument).
 
-### Outcome Model Estimates
+```
+BURN-IN RHAT CONVERGENCE DIAGNOSTIC OUTPUT:
+
+  NOTE: Rank-normalized Rhat (Vehtari et al., 2021) is being used.
+        This applies rank normalization and chain folding for robust
+        convergence detection across all chains.
+
+  Comparing iterations across 4 chains    Highest Rhat   Parameter #
+                           626 to 1250           1.035            15
+                          1251 to 2500           1.016            16
+                          1876 to 3750           1.007             8
+                          2501 to 5000           1.007            16
+                          3126 to 6250           1.005            15
+                          3751 to 7500           1.006             1
+                          4376 to 8750           1.007            16
+                          5001 to 10000          1.008            16
+                          5626 to 11250          1.003            15
+                          6251 to 12500          1.003            15
+                          6876 to 13750          1.004            15
+                          7501 to 15000          1.004            16
+                          8126 to 16250          1.004            15
+                          8751 to 17500          1.003             1
+                          9376 to 18750          1.005             1
+                         10001 to 20000          1.003             1
+                         10626 to 21250          1.002            16
+                         11251 to 22500          1.003            16
+                         11876 to 23750          1.004            16
+                         12501 to 25000          1.004             1
+```
+
+## Outcome Model Estimates
 
 Each outcome variable has its own summary table containing raw and
 standardized coefficients, variances and standard deviations, and
@@ -139,6 +172,32 @@ estimates (posterior median), the StdDev column displays "Bayesian
 standard errors" (posterior standard deviations), the 2.5% and 97.5%
 columns display 95% credible intervals. The ChiSq and PValue columns
 are frequentist significance tests (Wald chi-square values).
+
+```
+Latent Variable:   b0i
+
+Parameters                         Estimate   StdDev     2.5%    97.5%       ChiSq  PValue     N_Eff
+-----------------------------------------------------------------------------------------------------
+
+Variances:
+  Residual Var.                       0.330    0.055    0.227    0.442         ---     ---   1405.347
+
+Coefficients:
+  Intercept                           6.338    0.059    6.221    6.451   11671.323   0.000   5757.221
+  group                               0.019    0.079   -0.134    0.178       0.059   0.809   5251.418
+
+Standard Deviations:
+  Residual SD                         0.575    0.048    0.476    0.665         ---     ---   1368.148
+
+Standardized Coefficients:
+  group                               0.017    0.069   -0.116    0.153       0.058   0.810   5223.293
+
+Proportion Variance Explained
+  by Coefficients                     0.002    0.007    0.000    0.025         ---     ---   9066.038
+  by Residual Variation               0.998    0.007    0.975    1.000         ---     ---   9066.038
+
+-----------------------------------------------------------------------------------------------------
+```
 
 The tables for b0i (random intercept) and b1i (random slope) summarize
 the focal model's level-2 regression equations and random coefficient
@@ -153,16 +212,16 @@ perfectly classify dropouts from completers, a condition known as
 near-separation. Very large effect sizes almost always signal that a
 model lacks support from the data.
 
-### Effective Sample Size Diagnostic
+## N_Eff Diagnostic
 
 The rightmost column in the parameter summary tables labeled N_Eff is the effective sample size (ESS)
 diagnostic. The ESS provides a gauge of whether the post-warm-up
 parameter summaries have sufficient precision. Numerically, it reflects
 the effective number of MCMC iterations (the "sample size") that
 contribute to these summaries after accounting for autocorrelation in
-the sampling process. Values above 100 are generally considered
-adequate (Gelman et al., 2014, p. 287). Inadequate PSRF and ESS values
-indicate that more iterations are needed.
+the sampling process. Larger values are better, and values above 100
+are generally considered adequate (Gelman et al., 2014, p. 287).
+Inadequate PSRF and ESS values indicate that more iterations are needed.
 
 ------------------------------------------------------------------------
 
@@ -194,7 +253,7 @@ source('https://raw.githubusercontent.com/craigenders/mnar-mlm/main/mnar-plottin
 
 ### Helper Functions
 
-```{r helper-functions}
+```{r helper-functions, class.source="fold-hide"}
 # function to extract key parameter estimates
 extract_params <- function(object, method) {
 
@@ -360,7 +419,9 @@ output(model2_aux)
 
 # Dropout Probabilities
 
-## Linear
+This section fits a series of models to examine time-related changes in dropout probabilities. The goal is to characterize how dropout rates evolve across occasions and whether those trends differ by group. Graphical and numerical summaries compare the average individual-level model-predicted probability of dropout against the observed proportions at each time point.
+
+## Linear Model
 
 The model in this section regresses the dropout indicator on month,
 treatment (med), and their interaction to assess whether dropout rates
@@ -390,7 +451,7 @@ time_linear <- rblimp(
 output(time_linear)
 ```
 
-## Quadratic
+## Quadratic Model
 
 The model in this section extends the linear trend by adding a
 quadratic month term, allowing dropout rates to accelerate or decelerate
@@ -420,7 +481,7 @@ time_quadratic <- rblimp(
 output(time_quadratic)
 ```
 
-## Dummy-Coded
+## Dummy-Coded Model
 
 The model in this section uses dummy codes for each time point to
 estimate occasion-specific dropout probabilities freely, without
@@ -498,7 +559,9 @@ plot_pmiss <- (plot_pmiss_obs | plot_pmiss_linear) / (plot_pmiss_quadratic | plo
 plot_pmiss
 ```
 
-## Obs. vs. Predicted
+## Probability Comparison
+
+The table below compares observed dropout probabilities to model-predicted probabilities from the linear, quadratic, and dummy-coded time models.
 
 ```{r dropout-fit}
 pmiss_obs       <- aggregate(dropout ~ month + med,                        data = time_dummy@average_imp,     mean)
@@ -535,6 +598,7 @@ miss_fit <- data.frame(
 ```{r dropout-fit-display, echo=FALSE}
 knitr::kable(miss_fit, caption = "Dropout Model Fit")
 ```
+
 
 ------------------------------------------------------------------------
 
@@ -660,7 +724,7 @@ output(model5_sharedparam)
 
 ------------------------------------------------------------------------
 
-# Model 6: Selection Model
+# Model 6: Selection
 
 Model 6 is a Diggle-Kenward selection model that conditions the
 probability of dropout on the current outcome value (dpdd). Because
@@ -718,7 +782,7 @@ output(model6_selection)
 
 ------------------------------------------------------------------------
 
-# Model 7: Selection Model
+# Model 7: Selection
 
 Model 7 extends the Diggle-Kenward model by adding a quadratic term for
 the current outcome, allowing for nonlinear dependence of dropout on
@@ -778,7 +842,7 @@ output(model7_selection)
 
 ------------------------------------------------------------------------
 
-# Model 8: Selection Model
+# Model 8: Selection
 
 Model 8 extends the Diggle-Kenward model by adding the lagged outcome
 value, conditioning dropout on both the current and prior occasion's
@@ -839,11 +903,13 @@ output(model8_selection)
 
 ------------------------------------------------------------------------
 
-# Summary Tables
+# Sensitivity Summary
+
+This section extracts key information from the `rblimp` model objects and summarizes it in tabular form, making it easier to compare results across all sensitivity models at a glance.
 
 ## Model Key
 
-Model numbers correspond to Tables 1, 3, and 4 in the paper. Models 2 and 4 from those tables are omitted here because they are intermediate specifications not highlighted in the paper's primary comparisons.
+The model numbers used throughout this supplement correspond to the models displayed in Tables 1, 3, and 4 in the paper.
 
 | Model | Description |
 |:------|:------------|
@@ -857,9 +923,9 @@ Model numbers correspond to Tables 1, 3, and 4 in the paper. Models 2 and 4 from
 
 ## Parameter Estimates
 
-The table displays the estimate (posterior median) and Bayesian standard error (posterior standard deviation) for each model. Column headers beginning with `Est` contain the point estimates (posterior medians) and those beginning with `SE` contain the Bayesian standard errors (posterior standard deviations).
+The table displays the estimates (posterior medians) and Bayesian standard errors (posterior standard deviations) for each parameter by model. Column headers beginning with `Est` contain the point estimates and those beginning with `SE` contain the Bayesian standard errors.
 
-```{r extract-params, cache=TRUE, dependson=c("helper-functions","model1-cmar","model2-aux","model3-sharedparam","model5-sharedparam","model6-selection","model7-selection","model8-selection")}
+```{r extract-params, cache=TRUE, dependson=c("helper-functions","model1-cmar","model2-aux","model3-sharedparam","model5-sharedparam","model6-selection","model7-selection","model8-selection"), class.source="fold-hide"}
 table_summary <- cbind(
   extract_params(model1_cmar,        "Mod1"),
   extract_params(model2_aux,         "Mod2"),
@@ -875,11 +941,11 @@ table_summary <- cbind(
 knitr::kable(table_summary, caption = "Parameter Estimates")
 ```
 
-## Changes in Standard Error Units
+## Changes in SE Units
 
-Each cell reports the difference between Model $k$ and the CMAR baseline (Model 1), scaled by Model 1's Bayesian standard error. Values near zero indicate that the MNAR assumption has little practical impact on that parameter relative to sampling variability.
+The table displays the differences between the MNAR model estimates and the CMAR estimates (Model 1), divided by the CMAR standard errors. Values near zero indicate that the MNAR assumption has little practical impact on that parameter relative to sampling variability. SE unit changes gauge how a test statistic reacts to different MNAR assumptions. For example, an SE unit change of 0.5 means a test statistic could shift from 1.5 to 2.0, or vice versa, depending on the direction of the change.
 
-```{r table-change, cache=TRUE, dependson="extract-params"}
+```{r table-change, cache=TRUE, dependson="extract-params", class.source="fold-hide"}
 est_cmar <- table_summary[, "Est_Mod1"]
 se_cmar  <- table_summary[, "SE_Mod1"]
 
@@ -898,7 +964,9 @@ knitr::kable(table_change, caption = "Changes vs. CMAR in Standard Error Units")
 
 ## Convergence Diagnostics
 
-```{r extract-conv, cache=TRUE, dependson=c("model1-cmar","model2-aux","model3-sharedparam","model5-sharedparam","model6-selection","model7-selection","model8-selection")}
+The table displays the minimum and maximum PSR and N_Eff values across all parameters by model. For the PSR, smaller values closer to the theoretical minimum of 1 are better, and values below 1.05 (Asparouhov & Muthén, 2010) or 1.10 (Gelman et al., 2014) are generally considered adequate. For the ESS, larger values are better, and values above 100 are generally considered adequate (Gelman et al., 2014, p. 287). Inadequate PSRF and ESS values indicate that more iterations are needed.
+
+```{r extract-conv, cache=TRUE, dependson=c("model1-cmar","model2-aux","model3-sharedparam","model5-sharedparam","model6-selection","model7-selection","model8-selection"), class.source="fold-hide"}
 table_diag <- rbind(
   extract_convergence(model1_cmar,        "Model 1"),
   extract_convergence(model2_aux,         "Model 2"),
