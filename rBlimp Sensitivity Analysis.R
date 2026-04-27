@@ -25,7 +25,7 @@ source('https://raw.githubusercontent.com/blimp-stats/blimp-book/main/misc/funct
 source('https://raw.githubusercontent.com/craigenders/mnar-mlm/main/mnar-plotting.R')
 
 #------------------------------------------------------------------------------#
-# CMAR MODEL ----
+# CMAR MODELS ----
 #------------------------------------------------------------------------------#
 
 # MODEL 1: CMAR ----
@@ -50,6 +50,7 @@ model1_cmar <- rblimp(
     d_month3 = ( (b0+b2 + 3*(b1+b3)) - (b0 + 3*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
     d_month4 = ( (b0+b2 + 4*(b1+b3)) - (b0 + 4*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);',
   seed = 90291, # random number seed
+  chains = 4, # number of mcmc processes
   burn = 20000, # burn-in iterations
   iter = 20000, # iterations for analysis summaries
   nimps = 20 # save imputations for graphing trajectories
@@ -61,6 +62,45 @@ output(model1_cmar)
 # plot model-predicted means
 bivariate_plot(dpdd.predicted ~ month | med, 
                model = model1_cmar, 
+               discrete_x = 'month', 
+               points = F, ci = F) + ylim(0,15)
+
+# MODEL 2: CMAR With Auxiliary Variable ----
+model2_aux <- rblimp(
+  data = mnar,
+  ordinal = 'med', # define med as categorical
+  clusterid = 'id', # person id variable
+  latent = 'id = b0i b1i', # define random effects as latent variables
+  fixed = 'month med', # complete predictors
+  model = '
+    # level-2 equations
+    b0i ~ intercept@b0 med@b2;
+    b1i ~ intercept@b1 med@b3;
+    b0i b1i ~~ b0i b1i;
+    # level-1 equation
+    dpdd ~ intercept@b0i month@b1i;
+    # auxiliary variable equation
+    ftnd ~ b0i b1i;',
+  parameters = ' 
+    # compute time-specific effect sizes
+    d_month0 = ( (b0+b2) - (b0) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month1 = ( (b0+b2 + 1*(b1+b3)) - (b0 + 1*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month2 = ( (b0+b2 + 2*(b1+b3)) - (b0 + 2*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month3 = ( (b0+b2 + 3*(b1+b3)) - (b0 + 3*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
+    d_month4 = ( (b0+b2 + 4*(b1+b3)) - (b0 + 4*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);',
+  seed = 90291, # random number seed
+  chains = 4, # number of mcmc processes
+  burn = 20000, # burn-in iterations
+  iter = 20000, # iterations for analysis summaries
+  nimps = 20 # save imputations for graphing trajectories
+)
+
+# print output
+output(model2_aux)
+
+# plot model-predicted means
+bivariate_plot(dpdd.predicted ~ month | med, 
+               model = model2_aux, 
                discrete_x = 'month', 
                points = F, ci = F) + ylim(0,15)
 
@@ -77,6 +117,7 @@ time_linear <- rblimp(
   dropout = 'dropout = dpdd (monotone)', # create dropout indicator
   model = 'dropout ~ intercept@-3 month month*med | intercept@0',
   seed = 90291, # random number seed
+  chains = 4, # number of mcmc processes
   burn = 20000, # burn-in iterations
   iter = 20000, # iterations for analysis summaries
   nimps = 20 # save imputations for graphing trajectories
@@ -94,6 +135,7 @@ time_quadratic <- rblimp(
   dropout = 'dropout = dpdd (monotone)', # create dropout indicator
   model = 'dropout ~ intercept@-3 month month^2 month*med month^2*med | intercept@0',
   seed = 90291, # random number seed
+  chains = 4, # number of mcmc processes
   burn = 20000, # burn-in iterations
   iter = 20000, # iterations for analysis summaries
   nimps = 20 # save imputations for graphing trajectories
@@ -114,6 +156,7 @@ time_dummy <- rblimp(
   model = 'dropout ~ intercept@-3 (month==1) (month==2) (month==3) (month==4)
       (month==1)*med (month==2)*med (month==3)*med (month==4)*med | intercept@0',
   seed = 90291, # random number seed
+  chains = 4, # number of mcmc processes
   burn = 20000, # burn-in iterations
   iter = 20000, # iterations for analysis summaries
   nimps = 20 # save imputations for graphing trajectories
@@ -127,7 +170,7 @@ output(time_dummy)
 #------------------------------------------------------------------------------#
 
 ymin <- 0
-ymax <- .4
+ymax <- .5
 
 # plot observed probabilities
 plot_pmiss_obs <- plot_means(dropout ~ month | med, 
@@ -206,6 +249,7 @@ model3_sharedparam <- rblimp(
     d_month3 = ( (b0+b2 + 3*(b1+b3)) - (b0 + 3*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
     d_month4 = ( (b0+b2 + 4*(b1+b3)) - (b0 + 4*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);',
   seed = 90291, # random number seed
+  chains = 4, # number of mcmc processes
   burn = 20000, # burn-in iterations
   iter = 20000, # iterations for analysis summaries
   nimps = 20 # save imputations for graphing trajectories
@@ -249,8 +293,10 @@ model5_sharedparam <- rblimp(
     d_month3 = ( (b0+b2 + 3*(b1+b3)) - (b0 + 3*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
     d_month4 = ( (b0+b2 + 4*(b1+b3)) - (b0 + 4*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);',
   seed = 90291, # random number seed
-  burn = 100000, # burn-in iterations
-  iter = 100000, # iterations for analysis summaries
+  chains = 4, # number of mcmc processes
+  chains = 4, # number of mcmc processes
+  burn = 60000, # burn-in iterations
+  iter = 60000, # iterations for analysis summaries
   nimps = 20 # save imputations for graphing trajectories
 )
 
@@ -296,6 +342,7 @@ model6_selection <- rblimp(
     d_month3 = ( (b0+b2 + 3*(b1+b3)) - (b0 + 3*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
     d_month4 = ( (b0+b2 + 4*(b1+b3)) - (b0 + 4*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);',
   seed = 90291, # random number seed
+  chains = 4, # number of mcmc processes
   burn = 20000, # burn-in iterations
   iter = 20000, # iterations for analysis summaries
   nimps = 20 # save imputations for graphing trajectories
@@ -339,6 +386,7 @@ model7_selection <- rblimp(
     d_month3 = ( (b0+b2 + 3*(b1+b3)) - (b0 + 3*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
     d_month4 = ( (b0+b2 + 4*(b1+b3)) - (b0 + 4*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);',
   seed = 90291, # random number seed
+  chains = 4, # number of mcmc processes
   burn = 20000, # burn-in iterations
   iter = 20000, # iterations for analysis summaries
   nimps = 20 # save imputations for graphing trajectories
@@ -382,8 +430,9 @@ model8_selection <- rblimp(
     d_month3 = ( (b0+b2 + 3*(b1+b3)) - (b0 + 3*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);
     d_month4 = ( (b0+b2 + 4*(b1+b3)) - (b0 + 4*b1) ) / sqrt(dpdd.totalvar + b0i.totalvar);',
   seed = 90291, # random number seed
-  burn = 50000, # burn-in iterations
-  iter = 50000, # iterations for analysis summaries
+  chains = 4, # number of mcmc processes
+  burn = 20000, # burn-in iterations
+  iter = 20000, # iterations for analysis summaries
   nimps = 20 # save imputations for graphing trajectories
 )
 
@@ -397,7 +446,7 @@ bivariate_plot(dpdd.predicted ~ month | med,
                points = F, ci = F) + ylim(0,15)
 
 #------------------------------------------------------------------------------#
-# EXTRACT ESTIMATES ----
+# SUMMARIZE RESULTS ----
 #------------------------------------------------------------------------------#
 
 # function to extract key estimates
@@ -457,14 +506,13 @@ extract_growth_params <- function(object, method) {
 
 # main summary table ----
 table_summary <- cbind(
-  extract_growth_params(model1, "M1"),
-  extract_growth_params(model2, "M2"),
-  extract_growth_params(model3, "M3"),
-  extract_growth_params(model4, "M4"),
-  extract_growth_params(model5, "M5"),
-  extract_growth_params(model6, "M6"),
-  extract_growth_params(model7, "M7"),
-  extract_growth_params(model8, "M8")
+  extract_growth_params(model1_cmar, "M1"),
+  extract_growth_params(model2_aux, "M2"),
+  extract_growth_params(model3_sharedparam, "M3"),
+  extract_growth_params(model5_sharedparam, "M5"),
+  extract_growth_params(model6_selection, "M6"),
+  extract_growth_params(model7_selection, "M7"),
+  extract_growth_params(model8_selection, "M8")
 )
 table_summary
 
@@ -490,26 +538,24 @@ extract_convergence <- function(object, method) {
 
 # build table
 table_diag <- rbind(
-  extract_convergence(model1, "Model 1"),
-  extract_convergence(model2, "Model 2"),
-  extract_convergence(model3, "Model 3"),
-  extract_convergence(model4, "Model 4"),
-  extract_convergence(model5, "Model 5"),
-  extract_convergence(model6, "Model 6"),
-  extract_convergence(model7, "Model 7"),
-  extract_convergence(model8, "Model 8")
+  extract_convergence(model1_cmar, "Model 1"),
+  extract_convergence(model2_aux, "Model 2"),
+  extract_convergence(model3_sharedparam, "Model 3"),
+  extract_convergence(model5_sharedparam, "Model 5"),
+  extract_convergence(model6_selection, "Model 6"),
+  extract_convergence(model7_selection, "Model 7"),
+  extract_convergence(model8_selection, "Model 8")
 )
 
 # add number of iterations
 table_diag$Iterations <- c(
-  nrow(model1@iterations),
-  nrow(model2@iterations),
-  nrow(model3@iterations),
-  nrow(model4@iterations),
-  nrow(model5@iterations),
-  nrow(model6@iterations),
-  nrow(model7@iterations),
-  nrow(model8@iterations)
+  nrow(model1_cmar@iterations),
+  nrow(model2_aux@iterations),
+  nrow(model3_sharedparam@iterations),
+  nrow(model5_sharedparam@iterations),
+  nrow(model6_selection@iterations),
+  nrow(model7_selection@iterations),
+  nrow(model8_selection@iterations)
 )
 table_diag
 
