@@ -1,7 +1,7 @@
 # selection model 6
 DATA: mnar.csv;
-# VARIABLES: id med month dpdd;
-DROPOUT: dropout = dpdd;
+# VARIABLES: id med month dpdd ftnd;
+DROPOUT: dropout = dpdd (monotone);
 ORDINAL: med;
 FIXED: month med;
 MISSING: NA;
