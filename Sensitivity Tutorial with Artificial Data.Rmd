@@ -233,7 +233,6 @@ Inadequate PSRF and ESS values indicate that more iterations are needed.
 library(ggplot2)
 library(patchwork)
 library(rblimp)
-set_blimp('/applications/blimp/blimp-nightly')
 ```
 
 ### Read Data
